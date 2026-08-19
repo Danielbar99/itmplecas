@@ -1,1 +1,1003 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de plecas — ITM / TecNM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --tecnm-navy:#0a2f52;
+    --tecnm-blue:#1974b3;
+    --tecnm-blue-light:#4fa8dd;
+    --tecnm-sky:#eaf4fb;
+    --ink:#0f2436;
+    --ink-soft:#4c6072;
+    --line:#d7e3ec;
+    --surface:#ffffff;
+    --page:#f4f7fa;
+    --ok:#1f8a4c;
+    --ok-bg:#e6f6ec;
+    --warn:#a35a00;
+    --warn-bg:#fdf1e2;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background:var(--page);
+    color:var(--ink);
+  }
+  header.app{
+    background:linear-gradient(100deg,var(--tecnm-navy) 0%,var(--tecnm-blue) 100%);
+    color:#fff;
+    padding:18px 28px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  header.app .mark{
+    width:38px;height:38px;border-radius:9px;
+    background:rgba(255,255,255,0.15);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:14px;letter-spacing:0.5px;
+    flex-shrink:0;
+  }
+  header.app h1{
+    font-size:16px;margin:0;font-weight:600;
+  }
+  header.app p{
+    margin:2px 0 0;font-size:12.5px;color:rgba(255,255,255,0.78);
+  }
+  main{
+    max-width:1240px;
+    margin:0 auto;
+    padding:22px 24px 60px;
+    display:grid;
+    grid-template-columns:340px 1fr;
+    gap:20px;
+  }
+  @media (max-width: 880px){
+    main{grid-template-columns:1fr;}
+  }
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px;
+  }
+  .panel + .panel{margin-top:16px;}
+  .panel h2{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:0.04em;
+    color:var(--ink-soft);
+    margin:0 0 12px;
+    font-weight:700;
+  }
+  .step-num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:18px;height:18px;border-radius:50%;
+    background:var(--tecnm-blue);color:#fff;font-size:11px;font-weight:700;
+    margin-right:6px;
+  }
+  .dropzone{
+    border:1.5px dashed var(--line);
+    border-radius:var(--radius);
+    padding:18px 12px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    background:#fbfdff;
+  }
+  .dropzone:hover, .dropzone.drag{
+    border-color:var(--tecnm-blue);
+    background:var(--tecnm-sky);
+  }
+  .dropzone svg{width:26px;height:26px;color:var(--tecnm-blue);margin-bottom:6px;}
+  .dropzone .main-txt{font-size:13px;font-weight:600;color:var(--ink);}
+  .dropzone .sub-txt{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  input[type=file]{display:none;}
 
+  .pleca-preview-chip{
+    margin-top:10px;
+    display:flex;align-items:center;gap:8px;
+    background:#fbfdff;border:1px solid var(--line);border-radius:8px;
+    padding:6px 8px;
+  }
+  .pleca-preview-chip img{
+    height:32px;max-width:70px;object-fit:contain;
+    background:repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 50% / 10px 10px;
+    border-radius:4px;
+  }
+  .pleca-preview-chip span{font-size:12px;color:var(--ink-soft);flex:1;}
+  .pleca-preview-chip button{
+    background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:16px;line-height:1;
+    padding:2px 4px;
+  }
+
+  .photo-thumb-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));
+    gap:8px;margin-top:12px;max-height:280px;overflow-y:auto;
+  }
+  .photo-thumb{
+    position:relative;border-radius:6px;overflow:hidden;
+    border:2px solid transparent;cursor:pointer;aspect-ratio:1/1;background:#eee;
+  }
+  .photo-thumb.active{border-color:var(--tecnm-blue);}
+  .photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .photo-thumb .rm{
+    position:absolute;top:2px;right:2px;
+    background:rgba(10,20,30,0.65);color:#fff;border:none;border-radius:4px;
+    width:18px;height:18px;font-size:12px;line-height:1;cursor:pointer;
+  }
+  .photo-thumb .badge{
+    position:absolute;bottom:2px;left:2px;
+    background:rgba(10,20,30,0.65);color:#fff;font-size:9px;
+    padding:1px 4px;border-radius:3px;
+  }
+
+  button.primary{
+    width:100%;
+    background:var(--tecnm-blue);color:#fff;border:none;
+    padding:11px 14px;border-radius:8px;font-size:13.5px;font-weight:600;
+    cursor:pointer;transition:background .15s;
+  }
+  button.primary:hover{background:#155f96;}
+  button.primary:disabled{background:#b9c6d1;cursor:not-allowed;}
+  button.secondary{
+    width:100%;
+    background:#fff;color:var(--ink);border:1px solid var(--line);
+    padding:10px 14px;border-radius:8px;font-size:13.5px;font-weight:600;
+    cursor:pointer;
+  }
+  button.secondary:hover{background:#f5f8fa;}
+  .btn-row{display:flex;gap:8px;}
+  .btn-row > *{flex:1;}
+
+  .lock-toggle{
+    display:flex;align-items:center;justify-content:space-between;
+    background:#fbfdff;border:1px solid var(--line);border-radius:8px;
+    padding:10px 12px;margin-bottom:12px;
+  }
+  .lock-toggle .label{font-size:13px;font-weight:600;}
+  .lock-toggle .sub{font-size:11px;color:var(--ink-soft);margin-top:1px;}
+  .lock-toggle .state{
+    display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;
+    padding:5px 10px;border-radius:20px;cursor:pointer;user-select:none;
+  }
+  .lock-toggle .state.locked{background:var(--ok-bg);color:var(--ok);}
+  .lock-toggle .state.unlocked{background:var(--warn-bg);color:var(--warn);}
+
+  .slider-row{margin-bottom:10px;}
+  .slider-row label{
+    display:flex;justify-content:space-between;font-size:12px;color:var(--ink-soft);margin-bottom:4px;
+  }
+  .slider-row input[type=range]{width:100%;}
+  #btn-autofit{margin-bottom:6px;font-size:12.5px;padding:8px 10px;}
+
+  .canvas-wrap{
+    background:#e7edf2;
+    border-radius:var(--radius);
+    border:1px solid var(--line);
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+  }
+  .canvas-stage{
+    position:relative;
+    max-width:100%;
+    background:#111;
+    border-radius:6px;
+    overflow:hidden;
+    touch-action:none;
+  }
+  .canvas-stage canvas.base{display:block;max-width:100%;height:auto;}
+  .overlay-handle{
+    position:absolute;
+    cursor:grab;
+    border:2px dashed rgba(255,255,255,0);
+    touch-action:none;
+  }
+  .overlay-handle.editable{
+    border-color:#ffd23f;
+  }
+  .overlay-handle:active{cursor:grabbing;}
+  .overlay-handle img{width:100%;height:100%;display:block;pointer-events:none;user-select:none;}
+  .resize-grip{
+    position:absolute;
+    bottom:-8px;right:-8px;
+    width:16px;height:16px;border-radius:50%;
+    background:#ffd23f;border:2px solid #7a5c00;
+    cursor:nwse-resize;
+  }
+  .empty-state{
+    padding:60px 20px;text-align:center;color:var(--ink-soft);
+  }
+  .empty-state svg{width:40px;height:40px;color:#b7c5d1;margin-bottom:10px;}
+  .empty-state .t1{font-size:14px;font-weight:600;color:var(--ink);}
+  .empty-state .t2{font-size:12.5px;margin-top:4px;}
+
+  .hint{
+    font-size:11.5px;color:var(--ink-soft);line-height:1.5;margin-top:8px;
+  }
+  .footer-note{
+    text-align:center;font-size:11.5px;color:var(--ink-soft);padding:18px 0 0;
+  }
+  .stage-caption{
+    font-size:12px;color:var(--ink-soft);text-align:center;
+  }
+  .stage-caption b{color:var(--ink);}
+  .progress-wrap{
+    margin-top:10px;height:6px;background:var(--line);border-radius:4px;overflow:hidden;display:none;
+  }
+  .progress-bar{height:100%;width:0%;background:var(--tecnm-blue);transition:width .15s;}
+
+  /* ---- Auth screen ---- */
+  #auth-screen{
+    min-height:calc(100vh - 74px);
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;
+  }
+  .auth-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:28px;width:100%;max-width:360px;
+  }
+  .auth-tabs{display:flex;gap:6px;background:#eef3f7;border-radius:8px;padding:4px;margin-bottom:18px;}
+  .auth-tabs button{
+    flex:1;border:none;background:transparent;padding:8px;border-radius:6px;
+    font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;
+  }
+  .auth-tabs button.active{background:#fff;color:var(--tecnm-blue);box-shadow:0 1px 3px rgba(10,40,70,0.12);}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
+  .field input{
+    width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;
+    font-size:13.5px;font-family:inherit;
+  }
+  .field input:focus{outline:none;border-color:var(--tecnm-blue);}
+  .auth-error{
+    background:var(--warn-bg);color:var(--warn);font-size:12.5px;border-radius:7px;
+    padding:8px 10px;margin-bottom:12px;display:none;
+  }
+  .auth-note{
+    background:var(--ok-bg);color:var(--ok);font-size:12.5px;border-radius:7px;
+    padding:8px 10px;margin-bottom:12px;display:none;
+  }
+  .user-chip{
+    margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12.5px;
+  }
+  .user-chip button{
+    background:rgba(255,255,255,0.15);color:#fff;border:none;
+    padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;
+  }
+  .user-chip button:hover{background:rgba(255,255,255,0.25);}
+
+  /* ---- Tabs (Generador / Historial) ---- */
+  .top-tabs{
+    max-width:1240px;margin:16px auto 0;padding:0 24px;
+    display:flex;gap:6px;
+  }
+  .top-tabs button{
+    border:1px solid var(--line);background:#fff;color:var(--ink-soft);
+    padding:9px 16px;border-radius:8px 8px 0 0;font-size:13px;font-weight:600;cursor:pointer;
+    border-bottom:none;position:relative;top:1px;
+  }
+  .top-tabs button.active{color:var(--tecnm-blue);border-bottom:1px solid #fff;background:#fff;}
+
+  /* ---- History ---- */
+  .history-list{display:flex;flex-direction:column;gap:10px;}
+  .history-batch{border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .history-batch summary{
+    list-style:none;cursor:pointer;padding:12px 14px;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:#fbfdff;
+  }
+  .history-batch summary::-webkit-details-marker{display:none;}
+  .history-batch .hb-title{font-size:13.5px;font-weight:600;}
+  .history-batch .hb-meta{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .history-photos{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
+    gap:10px;padding:14px;
+  }
+  .history-photo{border-radius:8px;overflow:hidden;border:1px solid var(--line);background:#eee;}
+  .history-photo img{width:100%;height:90px;object-fit:cover;display:block;}
+  .history-photo a{
+    display:block;text-align:center;font-size:11px;padding:6px 4px;color:var(--tecnm-blue);
+    text-decoration:none;font-weight:600;
+  }
+  .history-empty{padding:40px 16px;text-align:center;color:var(--ink-soft);font-size:13px;}
+</style>
+</head>
+<body>
+
+<header class="app">
+  <div class="mark">TecNM</div>
+  <div>
+    <h1>Generador de plecas — Comunicación y Difusión</h1>
+    <p>Instituto Tecnológico de Mexicali · TecNM</p>
+  </div>
+  <div class="user-chip" id="user-chip" style="display:none;">
+    <span id="user-chip-name"></span>
+    <button id="btn-signout" type="button">Cerrar sesión</button>
+  </div>
+</header>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button id="tab-login" class="active" type="button">Iniciar sesión</button>
+      <button id="tab-register" type="button">Registrarse</button>
+    </div>
+
+    <div class="auth-error" id="auth-error"></div>
+    <div class="auth-note" id="auth-note"></div>
+
+    <!-- LOGIN FORM -->
+    <form id="form-login">
+      <div class="field">
+        <label>Correo institucional</label>
+        <input type="email" id="login-email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="login-password" required autocomplete="current-password">
+      </div>
+      <button class="primary" type="submit">Entrar</button>
+    </form>
+
+    <!-- REGISTER FORM -->
+    <form id="form-register" style="display:none;">
+      <div class="field">
+        <label>Nombre completo</label>
+        <input type="text" id="reg-name" required autocomplete="name">
+      </div>
+      <div class="field">
+        <label>Correo institucional</label>
+        <input type="email" id="reg-email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="reg-password" required minlength="6" autocomplete="new-password">
+      </div>
+      <button class="primary" type="submit">Crear cuenta</button>
+    </form>
+  </div>
+</div>
+
+<!-- TOP TABS -->
+<div class="top-tabs" id="top-tabs" style="display:none;">
+  <button id="tab-generador" class="active" type="button">Generador</button>
+  <button id="tab-historial" type="button">Historial</button>
+</div>
+
+<main id="app-main" style="display:none;">
+  <!-- LEFT COLUMN: CONTROLS -->
+  <div>
+    <div class="panel">
+      <h2><span class="step-num">1</span>Pleca</h2>
+      <div class="dropzone" id="dz-pleca">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
+        <div class="main-txt">Sube la pleca (PNG con transparencia)</div>
+        <div class="sub-txt">El diseño con logos ya viene listo de Canva</div>
+      </div>
+      <input type="file" id="input-pleca" accept="image/*">
+      <div id="pleca-chip-holder"></div>
+      <p class="hint">La pleca se coloca igual sobre todas las fotos según la posición que ajustes en el paso 3.</p>
+    </div>
+
+    <div class="panel">
+      <h2><span class="step-num">2</span>Fotografías</h2>
+      <div class="dropzone" id="dz-photos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5-9 9"/></svg>
+        <div class="main-txt">Sube todas las fotos del lote</div>
+        <div class="sub-txt">Puedes arrastrar varias a la vez</div>
+      </div>
+      <input type="file" id="input-photos" accept="image/*" multiple>
+      <div class="photo-thumb-grid" id="thumb-grid"></div>
+      <p class="hint" id="photo-count-hint"></p>
+    </div>
+
+    <div class="panel">
+      <h2><span class="step-num">3</span>Posición y bloqueo</h2>
+
+      <div class="lock-toggle">
+        <div>
+          <div class="label">Ajuste de posición</div>
+          <div class="sub" id="lock-sub">Arrastra la pleca sobre la vista previa</div>
+        </div>
+        <div class="state unlocked" id="lock-btn">
+          <i data-ico="unlock"></i><span id="lock-label">Editar</span>
+        </div>
+      </div>
+
+      <div class="slider-row">
+        <label><span>Tamaño de la pleca</span><span id="scale-val">100%</span></label>
+        <input type="range" id="scale-slider" min="10" max="100" value="100" step="1">
+      </div>
+
+      <button class="secondary" id="btn-autofit" type="button">Ajustar a ancho completo + pie de foto</button>
+
+      <p class="hint">Arrastra la pleca directamente sobre la foto de vista previa para moverla, o usa la esquina inferior derecha para cambiar su tamaño. Cuando quede como quieres, presiona <b>Bloquear</b> — ese mismo ajuste se aplicará a todo el lote.</p>
+    </div>
+
+    <div class="panel">
+      <h2><span class="step-num">4</span>Generar</h2>
+      <div class="field">
+        <label>Nombre del evento (para tu historial)</label>
+        <input type="text" id="batch-label" placeholder="Ej. Plática obligatoria 18 ago">
+      </div>
+      <button class="primary" id="btn-generate" disabled>Aplicar pleca a todas las fotos</button>
+      <div class="progress-wrap" id="progress-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+      <p class="hint" id="generate-hint">Sube una pleca y al menos una foto, y bloquea la posición para continuar.</p>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN: PREVIEW -->
+  <div class="panel" style="align-self:start;">
+    <h2>Vista previa</h2>
+    <div class="canvas-wrap">
+      <div id="stage-holder"></div>
+      <div class="stage-caption" id="stage-caption"></div>
+    </div>
+  </div>
+</main>
+
+<!-- HISTORY PANEL -->
+<main id="app-history" style="display:none; max-width:1240px; margin:0 auto; padding:0 24px 60px;">
+  <div class="panel">
+    <h2>Tu historial</h2>
+    <p class="hint" style="margin-top:-6px;">Solo tú ves tus propios lotes. Las fotos quedan guardadas en tu cuenta para descargarlas cuando quieras.</p>
+    <div class="history-list" id="history-list">
+      <div class="history-empty">Cargando...</div>
+    </div>
+  </div>
+</main>
+
+<p class="footer-note">Herramienta interna · Comunicación y Difusión ITM / TecNM Mexicali</p>
+
+<script>
+(function(){
+  // ============================================================
+  // Configuración de Supabase — solo la llave PÚBLICA va aquí.
+  // Nunca pongas la secret key en este archivo: se sube a GitHub
+  // y cualquiera podría verla.
+  // ============================================================
+  const SUPABASE_URL = 'https://yuxpzmyzcispuomatnfy.supabase.co';
+  const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_UV8NtuyUjB4NBg2Bol3qSg_JfdmMvgq';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  const HISTORY_BUCKET = 'plecas-fotos';
+
+  let currentUser = null;
+
+  // ---------- auth screen elements ----------
+  const authScreen = document.getElementById('auth-screen');
+  const appMain = document.getElementById('app-main');
+  const appHistory = document.getElementById('app-history');
+  const topTabs = document.getElementById('top-tabs');
+  const userChip = document.getElementById('user-chip');
+  const userChipName = document.getElementById('user-chip-name');
+  const btnSignout = document.getElementById('btn-signout');
+
+  const tabLogin = document.getElementById('tab-login');
+  const tabRegister = document.getElementById('tab-register');
+  const formLogin = document.getElementById('form-login');
+  const formRegister = document.getElementById('form-register');
+  const authError = document.getElementById('auth-error');
+  const authNote = document.getElementById('auth-note');
+
+  const tabGenerador = document.getElementById('tab-generador');
+  const tabHistorial = document.getElementById('tab-historial');
+
+  function showAuthMsg(el, msg){
+    authError.style.display = 'none';
+    authNote.style.display = 'none';
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  tabLogin.addEventListener('click', ()=>{
+    tabLogin.classList.add('active'); tabRegister.classList.remove('active');
+    formLogin.style.display = 'block'; formRegister.style.display = 'none';
+    authError.style.display = 'none'; authNote.style.display = 'none';
+  });
+  tabRegister.addEventListener('click', ()=>{
+    tabRegister.classList.add('active'); tabLogin.classList.remove('active');
+    formRegister.style.display = 'block'; formLogin.style.display = 'none';
+    authError.style.display = 'none'; authNote.style.display = 'none';
+  });
+
+  formLogin.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if(error){ showAuthMsg(authError, traducirErrorAuth(error)); return; }
+  });
+
+  formRegister.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const full_name = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const { data, error } = await sb.auth.signUp({
+      email, password, options: { data: { full_name } }
+    });
+    if(error){ showAuthMsg(authError, traducirErrorAuth(error)); return; }
+    if(data.session){
+      // el proyecto tiene confirmación de correo desactivada: ya quedó dentro
+      return;
+    }
+    showAuthMsg(authNote, 'Cuenta creada. Revisa tu correo para confirmar el registro y luego inicia sesión.');
+    formRegister.reset();
+  });
+
+  btnSignout.addEventListener('click', async ()=>{
+    await sb.auth.signOut();
+  });
+
+  function traducirErrorAuth(error){
+    const m = (error && error.message) || '';
+    if(m.includes('Invalid login credentials')) return 'Correo o contraseña incorrectos.';
+    if(m.includes('User already registered')) return 'Ya existe una cuenta con ese correo. Intenta iniciar sesión.';
+    if(m.includes('Password should be at least')) return 'La contraseña debe tener al menos 6 caracteres.';
+    return m || 'Ocurrió un error, intenta de nuevo.';
+  }
+
+  tabGenerador.addEventListener('click', ()=>{
+    tabGenerador.classList.add('active'); tabHistorial.classList.remove('active');
+    appMain.style.display = 'grid'; appHistory.style.display = 'none';
+  });
+  tabHistorial.addEventListener('click', ()=>{
+    tabHistorial.classList.add('active'); tabGenerador.classList.remove('active');
+    appMain.style.display = 'none'; appHistory.style.display = 'block';
+    loadHistory();
+  });
+
+  sb.auth.onAuthStateChange((_event, session)=>{
+    currentUser = session ? session.user : null;
+    if(currentUser){
+      authScreen.style.display = 'none';
+      topTabs.style.display = 'flex';
+      appMain.style.display = 'grid';
+      userChip.style.display = 'flex';
+      userChipName.textContent = (currentUser.user_metadata && currentUser.user_metadata.full_name) || currentUser.email;
+    } else {
+      authScreen.style.display = 'flex';
+      topTabs.style.display = 'none';
+      appMain.style.display = 'none';
+      appHistory.style.display = 'none';
+      userChip.style.display = 'none';
+    }
+  });
+
+  // ---------- history ----------
+  const historyList = document.getElementById('history-list');
+
+  async function loadHistory(){
+    historyList.innerHTML = '<div class="history-empty">Cargando...</div>';
+    const { data: batches, error } = await sb
+      .from('generation_batches')
+      .select('id,label,photo_count,created_at')
+      .order('created_at', { ascending:false });
+    if(error){ historyList.innerHTML = `<div class="history-empty">No se pudo cargar el historial: ${escapeHtml(error.message)}</div>`; return; }
+    if(!batches.length){ historyList.innerHTML = '<div class="history-empty">Aún no has generado ningún lote.</div>'; return; }
+
+    historyList.innerHTML = '';
+    batches.forEach(b=>{
+      const det = document.createElement('details');
+      det.className = 'history-batch';
+      const dateStr = new Date(b.created_at).toLocaleString('es-MX', { dateStyle:'medium', timeStyle:'short' });
+      det.innerHTML = `
+        <summary>
+          <div>
+            <div class="hb-title">${escapeHtml(b.label || 'Sin nombre')}</div>
+            <div class="hb-meta">${dateStr} · ${b.photo_count} foto${b.photo_count===1?'':'s'}</div>
+          </div>
+        </summary>
+        <div class="history-photos" data-batch="${b.id}"><div class="history-empty">Abre para cargar fotos...</div></div>
+      `;
+      det.addEventListener('toggle', async ()=>{
+        if(!det.open) return;
+        const holder = det.querySelector('.history-photos');
+        if(holder.dataset.loaded) return;
+        holder.dataset.loaded = '1';
+        const { data: photos, error: perr } = await sb
+          .from('generation_photos')
+          .select('id,file_name,storage_path')
+          .eq('batch_id', b.id);
+        if(perr || !photos.length){ holder.innerHTML = '<div class="history-empty">Sin fotos.</div>'; return; }
+        holder.innerHTML = '';
+        for(const p of photos){
+          const { data: signed } = await sb.storage.from(HISTORY_BUCKET).createSignedUrl(p.storage_path, 3600);
+          const url = signed ? signed.signedUrl : '#';
+          const cell = document.createElement('div');
+          cell.className = 'history-photo';
+          cell.innerHTML = `<img src="${url}" loading="lazy"><a href="${url}" download="${escapeHtml(p.file_name)}">Descargar</a>`;
+          holder.appendChild(cell);
+        }
+      });
+      historyList.appendChild(det);
+    });
+  }
+
+  const state = {
+    plecaImg: null,
+    plecaFile: null,
+    photos: [], // {id, file, img, url}
+    activeIdx: 0,
+    transform: { x: 0, y: 0.7, w: 1 }, // relative to base photo, x/y = top-left fraction, w = width fraction (height auto by aspect)
+    locked: false,
+    manuallyAdjusted: false
+  };
+
+  const dzPleca = document.getElementById('dz-pleca');
+  const inputPleca = document.getElementById('input-pleca');
+  const plecaChipHolder = document.getElementById('pleca-chip-holder');
+
+  const dzPhotos = document.getElementById('dz-photos');
+  const inputPhotos = document.getElementById('input-photos');
+  const thumbGrid = document.getElementById('thumb-grid');
+  const photoCountHint = document.getElementById('photo-count-hint');
+
+  const lockBtn = document.getElementById('lock-btn');
+  const lockLabel = document.getElementById('lock-label');
+  const lockSub = document.getElementById('lock-sub');
+  const scaleSlider = document.getElementById('scale-slider');
+  const scaleVal = document.getElementById('scale-val');
+  const btnAutofit = document.getElementById('btn-autofit');
+
+  const btnGenerate = document.getElementById('btn-generate');
+  const generateHint = document.getElementById('generate-hint');
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressBar = document.getElementById('progress-bar');
+
+  const stageHolder = document.getElementById('stage-holder');
+  const stageCaption = document.getElementById('stage-caption');
+
+  // ---------- helpers ----------
+  function readImage(file){
+    return new Promise((resolve,reject)=>{
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = ()=> resolve({img,url});
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  function setupDropzone(el, onFiles){
+    el.addEventListener('click', ()=> el.dataset.target && document.getElementById(el.dataset.target).click());
+    ['dragover','dragenter'].forEach(ev=> el.addEventListener(ev, e=>{ e.preventDefault(); el.classList.add('drag'); }));
+    ['dragleave','drop'].forEach(ev=> el.addEventListener(ev, e=>{ e.preventDefault(); el.classList.remove('drag'); }));
+    el.addEventListener('drop', e=>{
+      const files = Array.from(e.dataTransfer.files || []).filter(f=>f.type.startsWith('image/'));
+      if(files.length) onFiles(files);
+    });
+  }
+
+  // ---------- pleca upload ----------
+  dzPleca.dataset.target = 'input-pleca';
+  setupDropzone(dzPleca, files => handlePlecaFile(files[0]));
+  inputPleca.addEventListener('change', e=>{
+    if(e.target.files[0]) handlePlecaFile(e.target.files[0]);
+  });
+
+  async function handlePlecaFile(file){
+    const {img, url} = await readImage(file);
+    state.plecaImg = img;
+    state.plecaFile = file;
+    plecaChipHolder.innerHTML = '';
+    const chip = document.createElement('div');
+    chip.className = 'pleca-preview-chip';
+    chip.innerHTML = `<img src="${url}"><span>${escapeHtml(file.name)}</span><button title="Quitar">&times;</button>`;
+    chip.querySelector('button').addEventListener('click', ()=>{
+      state.plecaImg = null; state.plecaFile = null;
+      plecaChipHolder.innerHTML = '';
+      renderStage(); updateGenerateState();
+    });
+    plecaChipHolder.appendChild(chip);
+    if(!state.manuallyAdjusted) autofitPleca();
+    renderStage();
+    updateGenerateState();
+  }
+
+  function autofitPleca(){
+    if(!state.plecaImg || !state.photos.length) return;
+    const photo = state.photos[state.activeIdx];
+    const photoRatio = photo.img.naturalWidth / photo.img.naturalHeight;
+    const plecaRatio = state.plecaImg.naturalWidth / state.plecaImg.naturalHeight;
+    state.transform.x = 0;
+    state.transform.w = 1;
+    const heightFraction = photoRatio / plecaRatio;
+    state.transform.y = clamp(1 - heightFraction, 0, 0.98);
+    scaleSlider.value = 100;
+    scaleVal.textContent = '100%';
+  }
+
+  btnAutofit.addEventListener('click', ()=>{
+    state.manuallyAdjusted = false;
+    autofitPleca();
+    renderStage();
+  });
+
+  // ---------- photos upload ----------
+  dzPhotos.dataset.target = 'input-photos';
+  setupDropzone(dzPhotos, files => addPhotos(files));
+  inputPhotos.addEventListener('change', e=>{
+    if(e.target.files.length) addPhotos(Array.from(e.target.files));
+  });
+
+  let photoIdSeq = 0;
+  async function addPhotos(files){
+    for(const file of files){
+      const {img, url} = await readImage(file);
+      state.photos.push({ id: 'p'+(photoIdSeq++), file, img, url });
+    }
+    if(state.photos.length === files.length){ state.activeIdx = 0; }
+    if(state.plecaImg && !state.manuallyAdjusted) autofitPleca();
+    renderThumbs();
+    renderStage();
+    updateGenerateState();
+  }
+
+  function renderThumbs(){
+    thumbGrid.innerHTML = '';
+    state.photos.forEach((p, idx)=>{
+      const div = document.createElement('div');
+      div.className = 'photo-thumb' + (idx===state.activeIdx ? ' active' : '');
+      div.innerHTML = `<img src="${p.url}"><button class="rm" title="Quitar">&times;</button>${idx===0?'<span class="badge">vista previa</span>':''}`;
+      div.addEventListener('click', (e)=>{
+        if(e.target.classList.contains('rm')) return;
+        state.activeIdx = idx;
+        renderThumbs(); renderStage();
+      });
+      div.querySelector('.rm').addEventListener('click', (e)=>{
+        e.stopPropagation();
+        state.photos.splice(idx,1);
+        if(state.activeIdx >= state.photos.length) state.activeIdx = Math.max(0, state.photos.length-1);
+        renderThumbs(); renderStage(); updateGenerateState();
+      });
+      thumbGrid.appendChild(div);
+    });
+    photoCountHint.textContent = state.photos.length
+      ? `${state.photos.length} foto${state.photos.length===1?'':'s'} en el lote.`
+      : '';
+  }
+
+  // ---------- lock ----------
+  lockBtn.addEventListener('click', ()=>{
+    state.locked = !state.locked;
+    updateLockUI();
+    renderStage();
+    updateGenerateState();
+  });
+
+  function updateLockUI(){
+    if(state.locked){
+      lockBtn.className = 'state locked';
+      lockLabel.textContent = 'Bloqueado';
+      lockSub.textContent = 'Este ajuste se aplicará a todas las fotos. Presiona para editar de nuevo.';
+    } else {
+      lockBtn.className = 'state unlocked';
+      lockLabel.textContent = 'Editar';
+      lockSub.textContent = 'Arrastra la pleca sobre la vista previa';
+    }
+  }
+  updateLockUI();
+
+  scaleSlider.addEventListener('input', ()=>{
+    state.manuallyAdjusted = true;
+    state.transform.w = scaleSlider.value/100; // 100% = ancho completo de la foto
+    scaleVal.textContent = scaleSlider.value + '%';
+    renderStage();
+  });
+  // Evita el bug reportado: si el cursor pasa sobre el slider y el usuario
+  // gira la rueda del mouse para desplazar la página, el navegador cambia
+  // el valor del <input type="range"> aunque no haya click. Lo bloqueamos.
+  scaleSlider.addEventListener('wheel', e => e.preventDefault(), {passive:false});
+
+  // ---------- stage / preview with drag ----------
+  let dragging = null; // {mode:'move'|'resize', startX, startY, startTX, startTY, startW}
+
+  function renderStage(){
+    stageHolder.innerHTML = '';
+    stageCaption.textContent = '';
+
+    if(!state.photos.length){
+      stageHolder.innerHTML = `<div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5-9 9"/></svg>
+        <div class="t1">Aún no hay fotos</div>
+        <div class="t2">Sube tus fotografías para ver la vista previa aquí</div>
+      </div>`;
+      return;
+    }
+
+    const photo = state.photos[state.activeIdx];
+    const stage = document.createElement('div');
+    stage.className = 'canvas-stage';
+    stage.style.width = '100%';
+
+    const baseCanvas = document.createElement('canvas');
+    baseCanvas.className = 'base';
+    const maxW = 760;
+    const ratio = photo.img.naturalWidth / photo.img.naturalHeight;
+    let dispW = Math.min(maxW, photo.img.naturalWidth);
+    let dispH = dispW / ratio;
+    baseCanvas.width = dispW;
+    baseCanvas.height = dispH;
+    const ctx = baseCanvas.getContext('2d');
+    ctx.drawImage(photo.img, 0, 0, dispW, dispH);
+    stage.appendChild(baseCanvas);
+
+    if(state.plecaImg){
+      const handle = document.createElement('div');
+      handle.className = 'overlay-handle' + (state.locked ? '' : ' editable');
+      const t = state.transform;
+      const plecaRatio = state.plecaImg.naturalWidth / state.plecaImg.naturalHeight;
+      const ow = t.w * dispW;
+      const oh = ow / plecaRatio;
+      handle.style.left = (t.x * dispW) + 'px';
+      handle.style.top = (t.y * dispH) + 'px';
+      handle.style.width = ow + 'px';
+      handle.style.height = oh + 'px';
+      const img = document.createElement('img');
+      img.src = state.plecaImg.src;
+      handle.appendChild(img);
+
+      if(!state.locked){
+        const grip = document.createElement('div');
+        grip.className = 'resize-grip';
+        handle.appendChild(grip);
+
+        // Los listeners de movimiento/soltar van en `document`, no en el
+        // propio elemento — así el arrastre no se activa ni se corta solo
+        // por pasar el cursor cerca, solo responde a un pointerdown real.
+        handle.addEventListener('pointerdown', (e)=>{
+          if(e.target === grip) return;
+          e.preventDefault();
+          state.manuallyAdjusted = true;
+          dragging = { mode:'move', startClientX:e.clientX, startClientY:e.clientY, startTX:t.x, startTY:t.y, dispW, dispH };
+          document.addEventListener('pointermove', onPointerMove);
+          document.addEventListener('pointerup', onPointerUp, {once:true});
+        });
+        grip.addEventListener('pointerdown', (e)=>{
+          e.preventDefault(); e.stopPropagation();
+          state.manuallyAdjusted = true;
+          dragging = { mode:'resize', startClientX:e.clientX, startClientY:e.clientY, startW:t.w, dispW, dispH };
+          document.addEventListener('pointermove', onPointerMove);
+          document.addEventListener('pointerup', onPointerUp, {once:true});
+        });
+      }
+      stage.appendChild(handle);
+    }
+
+    stageHolder.appendChild(stage);
+    stageCaption.innerHTML = state.plecaImg
+      ? `Vista previa · <b>${escapeHtml(photo.file.name)}</b>`
+      : `<b>${escapeHtml(photo.file.name)}</b> — sube una pleca para posicionarla`;
+  }
+
+  function onPointerMove(e){
+    if(!dragging) return;
+    const t = state.transform;
+    const dx = (e.clientX - dragging.startClientX) / dragging.dispW;
+    const dy = (e.clientY - dragging.startClientY) / dragging.dispH;
+    if(dragging.mode === 'move'){
+      t.x = clamp(dragging.startTX + dx, -0.5, 0.95);
+      t.y = clamp(dragging.startTY + dy, -0.5, 0.95);
+    } else if(dragging.mode === 'resize'){
+      t.w = clamp(dragging.startW + dx, 0.08, 1.5);
+      scaleSlider.value = Math.round(clamp(t.w,0.1,1)*100);
+      scaleVal.textContent = scaleSlider.value + '%';
+    }
+    renderStage();
+  }
+  function onPointerUp(){
+    dragging = null;
+    document.removeEventListener('pointermove', onPointerMove);
+  }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+  // ---------- lock affects generate state ----------
+  function updateGenerateState(){
+    const ready = state.plecaImg && state.photos.length>0 && state.locked;
+    btnGenerate.disabled = !ready;
+    if(!state.plecaImg) generateHint.textContent = 'Sube una pleca para continuar.';
+    else if(!state.photos.length) generateHint.textContent = 'Sube al menos una fotografía.';
+    else if(!state.locked) generateHint.textContent = 'Bloquea la posición de la pleca para generar el lote.';
+    else generateHint.textContent = `Listo para generar ${state.photos.length} foto${state.photos.length===1?'':'s'} con la pleca aplicada.`;
+  }
+
+  // ---------- generate, export & subir al historial ----------
+  const batchLabelInput = document.getElementById('batch-label');
+
+  btnGenerate.addEventListener('click', async ()=>{
+    if(btnGenerate.disabled || !currentUser) return;
+    btnGenerate.disabled = true;
+    progressWrap.style.display = 'block';
+    progressBar.style.width = '0%';
+    generateHint.textContent = 'Generando y subiendo a tu historial...';
+
+    const zip = new JSZip();
+    const t = state.transform;
+    const plecaRatio = state.plecaImg.naturalWidth / state.plecaImg.naturalHeight;
+    const label = batchLabelInput.value.trim() || new Date().toLocaleString('es-MX', { dateStyle:'medium', timeStyle:'short' });
+
+    // 1) crear el registro del lote
+    const { data: batch, error: batchErr } = await sb
+      .from('generation_batches')
+      .insert({ user_id: currentUser.id, label, photo_count: state.photos.length })
+      .select('id')
+      .single();
+
+    if(batchErr){
+      generateHint.textContent = 'No se pudo crear el registro del lote: ' + batchErr.message;
+      btnGenerate.disabled = false;
+      return;
+    }
+
+    for(let i=0;i<state.photos.length;i++){
+      const p = state.photos[i];
+      const canvas = document.createElement('canvas');
+      canvas.width = p.img.naturalWidth;
+      canvas.height = p.img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(p.img, 0, 0, canvas.width, canvas.height);
+
+      const ow = t.w * canvas.width;
+      const oh = ow / plecaRatio;
+      const ox = t.x * canvas.width;
+      const oy = t.y * canvas.height;
+      ctx.drawImage(state.plecaImg, ox, oy, ow, oh);
+
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+      const baseName = p.file.name.replace(/\.[^.]+$/, '');
+      const outName = `${baseName}_pleca.jpg`;
+      zip.file(outName, blob);
+
+      // subir a Supabase Storage bajo la carpeta del usuario
+      const storagePath = `${currentUser.id}/${batch.id}/${outName}`;
+      const { error: upErr } = await sb.storage.from(HISTORY_BUCKET).upload(storagePath, blob, {
+        contentType: 'image/jpeg', upsert: true
+      });
+      if(!upErr){
+        await sb.from('generation_photos').insert({
+          batch_id: batch.id, user_id: currentUser.id,
+          file_name: outName, storage_path: storagePath
+        });
+      }
+
+      progressBar.style.width = Math.round(((i+1)/state.photos.length)*100) + '%';
+    }
+
+    const zipBlob = await zip.generateAsync({type:'blob'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(zipBlob);
+    a.download = 'fotos_con_pleca.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    btnGenerate.disabled = false;
+    generateHint.textContent = `Listo: ${state.photos.length} foto${state.photos.length===1?'':'s'} descargadas y guardadas en tu historial.`;
+    batchLabelInput.value = '';
+  });
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  renderStage();
+  updateGenerateState();
+})();
+</script>
+</body>
+</html>
