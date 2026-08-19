@@ -1268,9 +1268,9 @@ window.__ITM_LOGO_ITM__   = "data:image/jpeg;base64,/9j/4QB2RXhpZgAATU0AKgAAAAgA
     zoomPct.textContent = state.zoom + '%';
     applyZoom();
   });
-  function applyZoom(){
+    function applyZoom(){
     const baseCanvas = stageHolder.querySelector('canvas.base');
-    if(baseCanvas) baseCanvas.style.width = state.zoom + '%';
+    if(baseCanvas) baseCanvas.style.width = (baseCanvas.width * state.zoom/100) + 'px';
   }
 
   document.getElementById('btn-fullscreen').addEventListener('click', ()=>{
@@ -1348,7 +1348,7 @@ window.__ITM_LOGO_ITM__   = "data:image/jpeg;base64,/9j/4QB2RXhpZgAATU0AKgAAAAgA
     let dispH = dispW / ratio;
     baseCanvas.width = dispW;
     baseCanvas.height = dispH;
-    baseCanvas.style.width = state.zoom + '%';
+    baseCanvas.style.width = (dispW * state.zoom/100) + 'px';
     const ctx = baseCanvas.getContext('2d');
     ctx.filter = buildFilterString(state.modifiers);
     ctx.drawImage(photo.img, 0, 0, dispW, dispH);
