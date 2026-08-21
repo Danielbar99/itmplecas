@@ -1316,11 +1316,7 @@ window.__ITM_LOGO_ITM__   = "data:image/jpeg;base64,/9j/4QB2RXhpZgAATU0AKgAAAAgA
     const warmHue = m.warmth >= 0 ? -(m.warmth * 0.3) : (Math.abs(m.warmth) * 0.6);
     return `brightness(${clamp(brightness,40,180)}%) contrast(${clamp(contrast,40,180)}%) saturate(${clamp(saturate,0,220)}%) sepia(${warmSepia}%) hue-rotate(${warmHue}deg)`;
   }
-
-  // ============================================================
-  // VISTA PREVIA CON ARRASTRE
-  // ============================================================
-  let dragging = null;  function renderStage(){
+function renderStage(){
     stageHolder.innerHTML = '';
     stageCaption.textContent = '';
 
@@ -1336,8 +1332,7 @@ window.__ITM_LOGO_ITM__   = "data:image/jpeg;base64,/9j/4QB2RXhpZgAATU0AKgAAAAgA
     const photo = state.photos[state.activeIdx];
     const stage = document.createElement('div');
     stage.className = 'canvas-stage';
-    // Ya no forzamos ancho 100%: el contenedor se ajusta automáticamente
-    // al tamaño real de cada foto (horizontal, vertical, cuadrada, etc.)
+    stage.style.width = '100%';
 
     const baseCanvas = document.createElement('canvas');
     baseCanvas.className = 'base';
@@ -1359,14 +1354,12 @@ window.__ITM_LOGO_ITM__   = "data:image/jpeg;base64,/9j/4QB2RXhpZgAATU0AKgAAAAgA
       handle.className = 'overlay-handle' + (state.locked ? '' : ' editable');
       const t = state.transform;
       const plecaRatio = state.plecaImg.naturalWidth / state.plecaImg.naturalHeight;
-      // Posición y tamaño en PORCENTAJE (no en píxeles): así el recuadro
-      // de la pleca siempre coincide con el tamaño real que el navegador
-      // dibuja en pantalla, sea cual sea el tamaño de la foto o el zoom.
-      const heightFrac = t.w * ratio / plecaRatio;
-      handle.style.left = (t.x * 100) + '%';
-      handle.style.top = (t.y * 100) + '%';
-      handle.style.width = (t.w * 100) + '%';
-      handle.style.height = (heightFrac * 100) + '%';
+      const ow = t.w * dispW;
+      const oh = ow / plecaRatio;
+      handle.style.left = (t.x * dispW) + 'px';
+      handle.style.top = (t.y * dispH) + 'px';
+      handle.style.width = ow + 'px';
+      handle.style.height = oh + 'px';
       const img = document.createElement('img');
       img.src = state.plecaImg.src;
       handle.appendChild(img);
@@ -1380,16 +1373,14 @@ window.__ITM_LOGO_ITM__   = "data:image/jpeg;base64,/9j/4QB2RXhpZgAATU0AKgAAAAgA
           if(e.target === grip) return;
           e.preventDefault();
           state.manuallyAdjusted = true;
-          const rect = baseCanvas.getBoundingClientRect();
-          dragging = { mode:'move', startClientX:e.clientX, startClientY:e.clientY, startTX:t.x, startTY:t.y, dispW: rect.width, dispH: rect.height };
+          dragging = { mode:'move', startClientX:e.clientX, startClientY:e.clientY, startTX:t.x, startTY:t.y, dispW, dispH };
           document.addEventListener('pointermove', onPointerMove);
           document.addEventListener('pointerup', onPointerUp, {once:true});
         });
         grip.addEventListener('pointerdown', (e)=>{
           e.preventDefault(); e.stopPropagation();
           state.manuallyAdjusted = true;
-          const rect = baseCanvas.getBoundingClientRect();
-          dragging = { mode:'resize', startClientX:e.clientX, startClientY:e.clientY, startW:t.w, dispW: rect.width, dispH: rect.height };
+          dragging = { mode:'resize', startClientX:e.clientX, startClientY:e.clientY, startW:t.w, dispW, dispH };
           document.addEventListener('pointermove', onPointerMove);
           document.addEventListener('pointerup', onPointerUp, {once:true});
         });
@@ -1402,6 +1393,8 @@ window.__ITM_LOGO_ITM__   = "data:image/jpeg;base64,/9j/4QB2RXhpZgAATU0AKgAAAAgA
       ? `Vista previa · <b>${escapeHtml(photo.file.name)}</b>`
       : `<b>${escapeHtml(photo.file.name)}</b> — sube una pleca para posicionarla`;
   }
+
+  function onPointerMove(e){
     if(!dragging) return;
     const t = state.transform;
     const dx = (e.clientX - dragging.startClientX) / dragging.dispW;
